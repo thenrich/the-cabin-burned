@@ -62,6 +62,7 @@ func (c *Control) Deactivate() {
 
 func (c *Control) setState(state int) {
 	c.state = state
+	Publish(c.name, state2string[c.state])
 }
 
 func (c *Control) Name() string {

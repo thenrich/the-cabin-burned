@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"io/ioutil"
 	"os/exec"
 	"context"
 	"log"
@@ -10,8 +11,14 @@ import (
 // run the command to invoke the lights
 func runCmd(ctx context.Context, done chan error, command string, args... string) *exec.Cmd {
 	cmd := exec.CommandContext(ctx, command, args...)
+	stderr, err := cmd.StderrPipe()
+	if err != nil {
+		return nil
+	}
 	go func() {
 		cmd.Start()
+		out, _ := ioutil.ReadAll(stderr)
+		fmt.Printf("%s\n", out)
 		done <- cmd.Wait()
 	}()
 	return cmd

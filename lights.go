@@ -64,8 +64,8 @@ func (l *Lights) handleStateChange(light string, state int) {
 
 func main() {
 	l := NewLights(&LightsConfig{Exclusive: true})
-	l.AddLight(NewControl("christmas_lights_music", NewCommandLights("sleep", "15")))
-	l.AddLight(NewControl("christmas_lights", NewGPIOLights()))
+	l.AddLight(NewControl("christmas_lights_music", NewCommandLights("python", "/home/pi/lightshowpi/py/hardware_controller.py", "--state", "dance")))
+	l.AddLight(NewControl("christmas_lights", NewCommandLights("python", "/home/pi/lightshowpi/py/hardware_controller.py", "--state", "on")))
 
 	m := NewMQTTHandler(l, &HandlerConfig{NamespacePrefix:"home/outside"})
 	h := NewHTTPHandler(l, &HandlerConfig{NamespacePrefix:"/lights"})

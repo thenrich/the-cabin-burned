@@ -6,9 +6,7 @@ import (
 )
 
 func Publish(topic string, state string) {
-	options := mqtt.NewClientOptions()
-	options.AddBroker("tcp://192.168.1.5:1883")
-	c := mqtt.NewClient(options)
+	c := NewMQTTClient()
 	if token := c.Connect(); token.Wait() && token.Error() != nil {
 		panic(token.Error())
 	}
@@ -17,4 +15,11 @@ func Publish(topic string, state string) {
 
 	token := c.Publish(topic, 0, true, state)
 	token.Wait()
+}
+
+func NewMQTTClient() mqtt.Client {
+	options := mqtt.NewClientOptions()
+	options.AddBroker("tcp://192.168.1.5:1883")
+	return mqtt.NewClient(options)
+
 }

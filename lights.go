@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"strings"
+	"github.com/eclipse/paho.mqtt.golang"
 )
 
 type Controller interface {
@@ -35,13 +36,9 @@ func (l *Lights) AddLight(c Controller) {
 	l.lights[c.Name()] = c
 }
 
-func (l *Lights) handleHttpStateChange(w http.ResponseWriter, r *http.Request) {
-	parts := strings.Split(r.URL.Path, "/")
-	light, state := parts[2], parts[3]
-	newState := string2state[state]
-
+func (l *Lights) handleStateChange(light string, state int) {
 	if l.config.Exclusive {
-		if newState == StateOn {
+		if state == StateOn {
 			for key := range l.lights {
 				if key == light { // Skip if we're on this light
 					continue
@@ -49,20 +46,32 @@ func (l *Lights) handleHttpStateChange(w http.ResponseWriter, r *http.Request) {
 				l.lights[key].Deactivate()
 			}
 			l.lights[light].Activate()
-		} else if newState == StateOff {
+		} else if state == StateOff {
 			l.lights[light].Deactivate()
 		}
 	} else {
-		if newState == StateOn {
+		if state == StateOn {
 			l.lights[light].Activate()
-		} else if newState == StateOff {
+		} else if state == StateOff {
 			l.lights[light].Deactivate()
 		}
 	}
-
 }
 
-func (l *Lights) Serve() {
+func (l *Lights) handleHttpStateChange(w http.ResponseWriter, r *http.Request) {
+	parts := strings.Split(r.URL.Path, "/")
+	light, state := parts[2], parts[3]
+	newState := string2state[state]
+
+	l.handleStateChange(light, newState)
+}
+
+func (l *Lights) handleMqttStateChange(client mqtt.Client, message mqtt.Message) {
+	parts := strings.Split(message.Topic(), "/")
+	fmt.Println(parts)
+}
+
+func (l *Lights) ServeHTTP() {
 	for key := range l.lights {
 		http.HandleFunc(fmt.Sprintf("/lights/%s/on", key), l.handleHttpStateChange)
 		http.HandleFunc(fmt.Sprintf("/lights/%s/off", key), l.handleHttpStateChange)
@@ -70,82 +79,26 @@ func (l *Lights) Serve() {
 	log.Fatal(http.ListenAndServe(":8080", nil))
 }
 
-func main() {
-	l := NewLights(&LightsConfig{Exclusive: true})
-	l.AddLight(NewControl("syncro", NewCommandLights()))
-	l.AddLight(NewControl("regular", NewGPIOLights()))
+func (l *Lights) SubscribeMQTT() {
+	c := NewMQTTClient()
+	if token := c.Connect(); token.Wait() && token.Error() != nil {
+		panic(token.Error())
+	}
 
-	l.Serve()
+	for key := range l.lights {
+		go func() {
+			if token := c.Subscribe(fmt.Sprintf("home/outside/%s/set", key), 0, l.handleMqttStateChange); token.Wait() && token.Error() != nil {
+				panic(token.Error())
+			}
+		}()
+	}
+
 }
 
-// set the state of name to state and publish the state change
-//func setState(name string, state int) {
-//	State[name] = state
-//
-//	// Publish
-//	Publish(name, state2string[state])
-//}
+func main() {
+	l := NewLights(&LightsConfig{Exclusive: true})
+	l.AddLight(NewControl("syncro", NewCommandLights("sleep", "15")))
+	l.AddLight(NewControl("regular", NewGPIOLights()))
 
-//func handleLights(enable chan bool, disable chan bool) {
-//	ctx := context.Background()
-//	var cmd *exec.Cmd
-//
-//	done := make(chan error)
-//
-//	for {
-//		select {
-//		case <-enable:
-//			if State["eee"] == StateOn {
-//				log.Println("Already on")
-//				continue
-//			}
-//			fmt.Println("Enable")
-//			setState("eee", StateOn)
-//			cmd = runCmd(ctx, done)
-//		case <-disable:
-//			if State["eee"] == StateOff {
-//				log.Println("Already off")
-//				continue
-//			}
-//			if cmd != nil {
-//				cmd.Process.Kill()
-//			}
-//			fmt.Println("Disable")
-//			setState("eee", StateOff)
-//		case <-done:
-//			log.Println("Command completed")
-//			setState("eee", StateOff)
-//
-//		}
-//	}
-//}
-
-//func main() {
-//	State = make(map[string]int)
-//	State["eee"] = StateOff
-//
-//	enableLightsChannel := make(chan bool)
-//	disableLightsChannel := make(chan bool)
-//
-//	go handleLights(enableLightsChannel, disableLightsChannel)
-//
-//	http.HandleFunc("/lights/on", func(w http.ResponseWriter, r *http.Request) {
-//		select {
-//		case enableLightsChannel <- true:
-//			fmt.Fprintf(w, "Lights on\n")
-//		default:
-//			fmt.Fprintf(w, "Last action still pending\n")
-//		}
-//
-//	})
-//	http.HandleFunc("/lights/off", func(w http.ResponseWriter, r *http.Request) {
-//		select {
-//		case disableLightsChannel <- true:
-//			fmt.Fprintf(w, "Lights off\n")
-//		default:
-//			fmt.Fprintf(w, "Last action still pending\n")
-//		}
-//
-//	})
-//	log.Fatal(http.ListenAndServe(":8080", nil))
-//}
+	l.ServeHTTP()
+}

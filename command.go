@@ -8,8 +8,8 @@ import (
 )
 
 // run the command to invoke the lights
-func runCmd(ctx context.Context, done chan error) *exec.Cmd {
-	cmd := exec.CommandContext(ctx, "sleep", "15")
+func runCmd(ctx context.Context, done chan error, command string, args... string) *exec.Cmd {
+	cmd := exec.CommandContext(ctx, command, args...)
 	go func() {
 		cmd.Start()
 		done <- cmd.Wait()
@@ -18,21 +18,23 @@ func runCmd(ctx context.Context, done chan error) *exec.Cmd {
 }
 
 type CommandLights struct {
-	cmd *exec.Cmd
+	Command string
+	Args    []string
+	cmd     *exec.Cmd
 }
 
 func (c *CommandLights) On(complete chan bool) {
 	done := make(chan error)
 	go func() {
 		fmt.Println("Block while waiting for on done channel")
-		err := <- done
+		err := <-done
 		if err != nil {
 			log.Println(err.Error())
 		}
 		complete <- true
 	}()
 	ctx := context.Background()
-	c.cmd = runCmd(ctx, done)
+	c.cmd = runCmd(ctx, done, c.Command, c.Args...)
 }
 
 func (c *CommandLights) Off() {
@@ -42,6 +44,6 @@ func (c *CommandLights) Off() {
 	}
 }
 
-func NewCommandLights() *CommandLights {
-	return &CommandLights{}
+func NewCommandLights(command string, args... string) *CommandLights {
+	return &CommandLights{Command: command, Args: args}
 }

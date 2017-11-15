@@ -15,7 +15,7 @@ func (g *Lights) On(done chan bool) {
 func (g *Lights) Off() {
 	fmt.Println("gpio Off")
 	setupPins(g.cfg.Conn, g.cfg)
-	allOn()
+	allOff()
 }
 
 func NewLights(cfg *Config) *Lights {

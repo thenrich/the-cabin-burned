@@ -1,8 +1,8 @@
 package main
 
 import (
-	"github.com/thenrich/the-cabin-burned/controllers/gpio"
-	"github.com/thenrich/the-cabin-burned/controllers/command"
+	"github.com/thenrich/the-cabin-burned/drivers/gpio"
+	"github.com/thenrich/the-cabin-burned/drivers/command"
 	"gobot.io/x/gobot/platforms/raspi"
 )
 

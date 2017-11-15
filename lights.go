@@ -1,5 +1,11 @@
 package main
 
+import (
+	"github.com/thenrich/the-cabin-burned/controllers/gpio"
+	"github.com/thenrich/the-cabin-burned/controllers/command"
+	"gobot.io/x/gobot/platforms/raspi"
+)
+
 // Controller defines the behavior of a light controller
 type Controller interface {
 	// Start should begin a goroutine to monitor the state of the light
@@ -64,11 +70,25 @@ func (l *Lights) handleStateChange(light string, state int) {
 
 func main() {
 	l := NewLights(&LightsConfig{Exclusive: true})
-	l.AddLight(NewControl("christmas_lights_music", NewCommandLights("python", "/home/pi/lightshowpi/py/hardware_controller.py", "--state", "dance")))
-	l.AddLight(NewControl("christmas_lights", NewCommandLights("python", "/home/pi/lightshowpi/py/hardware_controller.py", "--state", "on")))
 
-	m := NewMQTTHandler(l, &HandlerConfig{NamespacePrefix:"home/outside"})
-	h := NewHTTPHandler(l, &HandlerConfig{NamespacePrefix:"/lights"})
+	l.AddLight(NewControl("christmas_lights_music", command.NewLights("python", "/home/pi/lightshowpi/py/hardware_controller.py", "--state", "dance")))
+	l.AddLight(NewControl("christmas_lights",
+		gpio.NewLights(
+			&gpio.Config{
+				Conn: raspi.NewAdaptor(),
+				Pins: []string{
+					"11",
+					"12",
+					"13",
+					"15",
+					"16",
+					"18",
+					"7",
+					"32",
+				}})))
+
+	m := NewMQTTHandler(l, &HandlerConfig{NamespacePrefix: "home/outside"})
+	h := NewHTTPHandler(l, &HandlerConfig{NamespacePrefix: "/lights"})
 
 	AddHandler(m)
 	AddHandler(h)

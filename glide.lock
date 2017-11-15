@@ -1,0 +1,34 @@
+hash: 2103a15afd588c20c0fba13629b6c5061bb7efc47b3bfbe18d4de7aae3a28f23
+updated: 2017-11-15T14:54:10.5977-05:00
+imports:
+- name: github.com/eclipse/paho.mqtt.golang
+  version: aff15770515e3c57fc6109da73d42b0d46f7f483
+  subpackages:
+  - packets
+- name: github.com/hashicorp/errwrap
+  version: 7554cd9344cec97297fa6649b055a8c98c2a1e55
+- name: github.com/hashicorp/go-multierror
+  version: 83588e72410abfbe4df460eeb6f30841ae47d4c4
+- name: github.com/sigurn/crc8
+  version: e55481d6f45c5a8f040343bace9013571dae103e
+- name: github.com/sigurn/utils
+  version: f19e41f79f8f006116f682c1af454591bc278ad4
+- name: gobot.io/x/gobot
+  version: 9f153dbce4d06717185a5c864a350c216a94ae76
+  subpackages:
+  - drivers/gpio
+  - drivers/i2c
+  - drivers/spi
+  - platforms/raspi
+  - sysfs
+- name: golang.org/x/exp
+  version: be09b602c40b1028d91bf805b38a6f54741fc34d
+  subpackages:
+  - io/spi
+  - io/spi/driver
+- name: golang.org/x/net
+  version: 9dfe39835686865bff950a07b394c12a98ddc811
+  subpackages:
+  - proxy
+  - websocket
+testImports: []

@@ -13,8 +13,8 @@ const (
 
 // state2string converts states to strings
 var state2string = map[int]string{
-	StateOn:  "on",
-	StateOff: "off",
+	StateOn:  "ON",
+	StateOff: "OFF",
 }
 
 var string2state = map[string]int {

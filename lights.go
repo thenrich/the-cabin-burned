@@ -16,26 +16,32 @@ type Controller interface {
 	Deactivate()
 }
 
+// Lights is the parent structure that controls all light interactions
 type Lights struct {
 	config *LightsConfig
 	lights map[string]Controller
 }
 
+// LightsConfig provides configuration for the main Lights structure
 type LightsConfig struct {
 	// Exclusive only allows one light in the config to be enabled
 	// at a time
 	Exclusive bool
 }
 
+// NewLights creates a new Lights object
 func NewLights(c *LightsConfig) *Lights {
 	l := &Lights{c, make(map[string]Controller)}
 	return l
 }
 
+// AddLight adds a light controller
 func (l *Lights) AddLight(c Controller) {
 	l.lights[c.Name()] = c
 }
 
+// handleStateChange calls the appropriate activate/deactivate on each
+// controller based on configuration settings
 func (l *Lights) handleStateChange(light string, state int) {
 	if l.config.Exclusive {
 		if state == StateOn {
@@ -68,7 +74,15 @@ func (l *Lights) handleHttpStateChange(w http.ResponseWriter, r *http.Request) {
 
 func (l *Lights) handleMqttStateChange(client mqtt.Client, message mqtt.Message) {
 	parts := strings.Split(message.Topic(), "/")
-	fmt.Println(parts)
+	light, state := parts[2], string(message.Payload())
+	var newState int
+	if state == "ON" {
+		newState = StateOn
+	} else {
+		newState = StateOff
+	}
+
+	l.handleStateChange(light, newState)
 }
 
 func (l *Lights) ServeHTTP() {
@@ -86,19 +100,18 @@ func (l *Lights) SubscribeMQTT() {
 	}
 
 	for key := range l.lights {
-		go func() {
 			if token := c.Subscribe(fmt.Sprintf("home/outside/%s/set", key), 0, l.handleMqttStateChange); token.Wait() && token.Error() != nil {
 				panic(token.Error())
 			}
-		}()
 	}
 
 }
 
 func main() {
 	l := NewLights(&LightsConfig{Exclusive: true})
-	l.AddLight(NewControl("syncro", NewCommandLights("sleep", "15")))
-	l.AddLight(NewControl("regular", NewGPIOLights()))
+	l.AddLight(NewControl("christmas_lights_music", NewCommandLights("sleep", "15")))
+	l.AddLight(NewControl("christmas_lights", NewGPIOLights()))
 
+	l.SubscribeMQTT()
 	l.ServeHTTP()
 }

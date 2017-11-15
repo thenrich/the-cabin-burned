@@ -1,18 +1,16 @@
 package main
 
-import (
-	"net/http"
-	"fmt"
-	"log"
-	"strings"
-	"github.com/eclipse/paho.mqtt.golang"
-)
-
+// Controller defines the behavior of a light controller
 type Controller interface {
+	// Start should begin a goroutine to monitor the state of the light
 	Start()
+	// Name should return the name of the light
 	Name() string
+	// State should return the state of the light
 	State() int
+	// Activate should activate the light
 	Activate()
+	// Deactivate should deactivate the light
 	Deactivate()
 }
 
@@ -64,54 +62,16 @@ func (l *Lights) handleStateChange(light string, state int) {
 	}
 }
 
-func (l *Lights) handleHttpStateChange(w http.ResponseWriter, r *http.Request) {
-	parts := strings.Split(r.URL.Path, "/")
-	light, state := parts[2], parts[3]
-	newState := string2state[state]
-
-	l.handleStateChange(light, newState)
-}
-
-func (l *Lights) handleMqttStateChange(client mqtt.Client, message mqtt.Message) {
-	parts := strings.Split(message.Topic(), "/")
-	light, state := parts[2], string(message.Payload())
-	var newState int
-	if state == "ON" {
-		newState = StateOn
-	} else {
-		newState = StateOff
-	}
-
-	l.handleStateChange(light, newState)
-}
-
-func (l *Lights) ServeHTTP() {
-	for key := range l.lights {
-		http.HandleFunc(fmt.Sprintf("/lights/%s/on", key), l.handleHttpStateChange)
-		http.HandleFunc(fmt.Sprintf("/lights/%s/off", key), l.handleHttpStateChange)
-	}
-	log.Fatal(http.ListenAndServe(":8080", nil))
-}
-
-func (l *Lights) SubscribeMQTT() {
-	c := NewMQTTClient()
-	if token := c.Connect(); token.Wait() && token.Error() != nil {
-		panic(token.Error())
-	}
-
-	for key := range l.lights {
-			if token := c.Subscribe(fmt.Sprintf("home/outside/%s/set", key), 0, l.handleMqttStateChange); token.Wait() && token.Error() != nil {
-				panic(token.Error())
-			}
-	}
-
-}
-
 func main() {
 	l := NewLights(&LightsConfig{Exclusive: true})
 	l.AddLight(NewControl("christmas_lights_music", NewCommandLights("sleep", "15")))
 	l.AddLight(NewControl("christmas_lights", NewGPIOLights()))
 
-	l.SubscribeMQTT()
-	l.ServeHTTP()
+	m := NewMQTTHandler(l, &HandlerConfig{NamespacePrefix:"home/outside"})
+	h := NewHTTPHandler(l, &HandlerConfig{NamespacePrefix:"/lights"})
+
+	AddHandler(m)
+	AddHandler(h)
+
+	Listen()
 }

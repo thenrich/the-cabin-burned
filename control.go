@@ -22,11 +22,16 @@ var string2state = map[string]int {
 	"off": StateOff,
 }
 
+// LightControl defines the behavior of the driving of the actual light itself
 type LightControl interface {
+	// On should turn the light on and optionally send a message on the
+	// chanel if the light turns off on its own
 	On(chan bool)
+	// Off should turn off the light
 	Off()
 }
 
+// Control implements the Controller interface for driving a LightControl
 type Control struct {
 	Driver LightControl
 

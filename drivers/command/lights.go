@@ -15,9 +15,15 @@ func runCmd(ctx context.Context, done chan error, command string, args... string
 	if err != nil {
 		return nil
 	}
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		return nil
+	}
 	go func() {
 		cmd.Start()
 		out, _ := ioutil.ReadAll(stderr)
+		fmt.Printf("%s\n", out)
+		out, _ = ioutil.ReadAll(stdout)
 		fmt.Printf("%s\n", out)
 		done <- cmd.Wait()
 	}()

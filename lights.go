@@ -70,8 +70,7 @@ func (l *Lights) handleStateChange(light string, state int) {
 
 func main() {
 	l := NewLights(&LightsConfig{Exclusive: true})
-
-	l.AddLight(NewControl("christmas_lights_music", command.NewLights("python", "/home/pi/lightshowpi/py/hardware_controller.py", "--state", "dance")))
+	l.AddLight(NewControl("christmas_lights_music", command.NewLights("python", "/home/pi/lightshowpi/py/synchronized_lights.py", "--file=/home/pi/lightshowpi/music/sample/08.mp3")))
 	l.AddLight(NewControl("christmas_lights",
 		gpio.NewLights(
 			&gpio.Config{
@@ -83,7 +82,7 @@ func main() {
 					"15",
 					"16",
 					"18",
-					"7",
+					"22",
 					"32",
 				}})))
 

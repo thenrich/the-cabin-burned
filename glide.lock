@@ -1,5 +1,5 @@
-hash: 05ef66233c4af6dcbe1c451605ae9feaf35cfee1b5dfec6b5bd47f4596de09cd
-updated: 2017-11-15T23:00:12.413075-05:00
+hash: aa2c35788b720fb3175cfa62be422bef3fedeedc0dad874f719c4021ae451008
+updated: 2017-11-16T09:14:50.249198-05:00
 imports:
 - name: github.com/eclipse/paho.mqtt.golang
   version: aff15770515e3c57fc6109da73d42b0d46f7f483
@@ -9,12 +9,18 @@ imports:
   version: 7554cd9344cec97297fa6649b055a8c98c2a1e55
 - name: github.com/hashicorp/go-multierror
   version: 83588e72410abfbe4df460eeb6f30841ae47d4c4
+- name: github.com/inconshreveable/mousetrap
+  version: 76626ae9c91c4f2a10f34cad8ce83ea42c93bb75
 - name: github.com/pkg/errors
   version: 645ef00459ed84a119197bfb8d8205042c6df63d
 - name: github.com/sigurn/crc8
   version: e55481d6f45c5a8f040343bace9013571dae103e
 - name: github.com/sigurn/utils
   version: f19e41f79f8f006116f682c1af454591bc278ad4
+- name: github.com/spf13/cobra
+  version: 7b2c5ac9fc04fc5efafb60700713d4fa609b777b
+- name: github.com/spf13/pflag
+  version: 4c012f6dcd9546820e378d0bdda4d8fc772cdfea
 - name: gobot.io/x/gobot
   version: 9f153dbce4d06717185a5c864a350c216a94ae76
   subpackages:
@@ -34,5 +40,5 @@ imports:
   - proxy
   - websocket
 - name: gopkg.in/yaml.v2
-  version: eb3733d160e74a9c7e442f435eb3bea458e1d19f
+  version: 287cf08546ab5e7e37d55a84f7ed3fd1db036de5
 testImports: []

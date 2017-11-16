@@ -1,4 +1,4 @@
-package main
+package the_cabin_burned
 
 import (
 	"fmt"

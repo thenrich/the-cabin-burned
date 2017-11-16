@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"github.com/thenrich/the-cabin-burned/drivers/gpio"
 	"github.com/thenrich/the-cabin-burned/drivers/command"
 	"gobot.io/x/gobot/platforms/raspi"
@@ -92,7 +93,7 @@ func main() {
 			if config.Lights[lightOption].Command == "" {
 				log.Fatal(errors.Errorf("invalid command for light: %s", config.Lights[lightOption].Name))
 			}
-
+			fmt.Println(config.Lights[lightOption])
 			l.AddLight(
 				NewControl(
 					config.Lights[lightOption].Name,

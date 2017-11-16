@@ -58,5 +58,7 @@ func (c *Lights) Off() {
 }
 
 func NewLights(command string, args... string) *Lights {
+	fmt.Println(command)
+	fmt.Println(args)
 	return &Lights{Command: command, Args: args}
 }

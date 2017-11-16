@@ -274,13 +274,6 @@ func (cs *clientStream) checkResetOrDone() error {
 	}
 }
 
-func (cs *clientStream) getStartedWrite() bool {
-	cc := cs.cc
-	cc.mu.Lock()
-	defer cc.mu.Unlock()
-	return cs.startedWrite
-}
-
 func (cs *clientStream) abortRequestBodyWrite(err error) {
 	if err == nil {
 		panic("nil error")
@@ -356,9 +349,14 @@ func (t *Transport) RoundTripOpt(req *http.Request, opt RoundTripOpt) (*http.Res
 			return nil, err
 		}
 		traceGotConn(req, cc)
-		res, gotErrAfterReqBodyWrite, err := cc.roundTrip(req)
+		res, err := cc.RoundTrip(req)
 		if err != nil && retry <= 6 {
-			if req, err = shouldRetryRequest(req, err, gotErrAfterReqBodyWrite); err == nil {
+			afterBodyWrite := false
+			if e, ok := err.(afterReqBodyWriteError); ok {
+				err = e
+				afterBodyWrite = true
+			}
+			if req, err = shouldRetryRequest(req, err, afterBodyWrite); err == nil {
 				// After the first retry, do exponential backoff with 10% jitter.
 				if retry == 0 {
 					continue
@@ -395,6 +393,16 @@ var (
 	errClientConnUnusable  = errors.New("http2: client conn not usable")
 	errClientConnGotGoAway = errors.New("http2: Transport received Server's graceful shutdown GOAWAY")
 )
+
+// afterReqBodyWriteError is a wrapper around errors returned by ClientConn.RoundTrip.
+// It is used to signal that err happened after part of Request.Body was sent to the server.
+type afterReqBodyWriteError struct {
+	err error
+}
+
+func (e afterReqBodyWriteError) Error() string {
+	return e.err.Error() + "; some request body already written"
+}
 
 // shouldRetryRequest is called by RoundTrip when a request fails to get
 // response headers. It is always called with a non-nil error.
@@ -744,13 +752,8 @@ func actualContentLength(req *http.Request) int64 {
 }
 
 func (cc *ClientConn) RoundTrip(req *http.Request) (*http.Response, error) {
-	resp, _, err := cc.roundTrip(req)
-	return resp, err
-}
-
-func (cc *ClientConn) roundTrip(req *http.Request) (res *http.Response, gotErrAfterReqBodyWrite bool, err error) {
 	if err := checkConnHeaders(req); err != nil {
-		return nil, false, err
+		return nil, err
 	}
 	if cc.idleTimer != nil {
 		cc.idleTimer.Stop()
@@ -758,14 +761,14 @@ func (cc *ClientConn) roundTrip(req *http.Request) (res *http.Response, gotErrAf
 
 	trailers, err := commaSeparatedTrailers(req)
 	if err != nil {
-		return nil, false, err
+		return nil, err
 	}
 	hasTrailers := trailers != ""
 
 	cc.mu.Lock()
 	if err := cc.awaitOpenSlotForRequest(req); err != nil {
 		cc.mu.Unlock()
-		return nil, false, err
+		return nil, err
 	}
 
 	body := req.Body
@@ -799,7 +802,7 @@ func (cc *ClientConn) roundTrip(req *http.Request) (res *http.Response, gotErrAf
 	hdrs, err := cc.encodeHeaders(req, requestedGzip, trailers, contentLen)
 	if err != nil {
 		cc.mu.Unlock()
-		return nil, false, err
+		return nil, err
 	}
 
 	cs := cc.newStream()
@@ -825,7 +828,7 @@ func (cc *ClientConn) roundTrip(req *http.Request) (res *http.Response, gotErrAf
 		// Don't bother sending a RST_STREAM (our write already failed;
 		// no need to keep writing)
 		traceWroteRequest(cs.trace, werr)
-		return nil, false, werr
+		return nil, werr
 	}
 
 	var respHeaderTimer <-chan time.Time
@@ -844,7 +847,7 @@ func (cc *ClientConn) roundTrip(req *http.Request) (res *http.Response, gotErrAf
 	bodyWritten := false
 	ctx := reqContext(req)
 
-	handleReadLoopResponse := func(re resAndError) (*http.Response, bool, error) {
+	handleReadLoopResponse := func(re resAndError) (*http.Response, error) {
 		res := re.res
 		if re.err != nil || res.StatusCode > 299 {
 			// On error or status code 3xx, 4xx, 5xx, etc abort any
@@ -860,12 +863,18 @@ func (cc *ClientConn) roundTrip(req *http.Request) (res *http.Response, gotErrAf
 			cs.abortRequestBodyWrite(errStopReqBodyWrite)
 		}
 		if re.err != nil {
+			cc.mu.Lock()
+			afterBodyWrite := cs.startedWrite
+			cc.mu.Unlock()
 			cc.forgetStreamID(cs.ID)
-			return nil, cs.getStartedWrite(), re.err
+			if afterBodyWrite {
+				return nil, afterReqBodyWriteError{re.err}
+			}
+			return nil, re.err
 		}
 		res.Request = req
 		res.TLS = cc.tlsState
-		return res, false, nil
+		return res, nil
 	}
 
 	for {
@@ -880,7 +889,7 @@ func (cc *ClientConn) roundTrip(req *http.Request) (res *http.Response, gotErrAf
 				cs.abortRequestBodyWrite(errStopReqBodyWriteAndCancel)
 			}
 			cc.forgetStreamID(cs.ID)
-			return nil, cs.getStartedWrite(), errTimeout
+			return nil, errTimeout
 		case <-ctx.Done():
 			if !hasBody || bodyWritten {
 				cc.writeStreamReset(cs.ID, ErrCodeCancel, nil)
@@ -889,7 +898,7 @@ func (cc *ClientConn) roundTrip(req *http.Request) (res *http.Response, gotErrAf
 				cs.abortRequestBodyWrite(errStopReqBodyWriteAndCancel)
 			}
 			cc.forgetStreamID(cs.ID)
-			return nil, cs.getStartedWrite(), ctx.Err()
+			return nil, ctx.Err()
 		case <-req.Cancel:
 			if !hasBody || bodyWritten {
 				cc.writeStreamReset(cs.ID, ErrCodeCancel, nil)
@@ -898,12 +907,12 @@ func (cc *ClientConn) roundTrip(req *http.Request) (res *http.Response, gotErrAf
 				cs.abortRequestBodyWrite(errStopReqBodyWriteAndCancel)
 			}
 			cc.forgetStreamID(cs.ID)
-			return nil, cs.getStartedWrite(), errRequestCanceled
+			return nil, errRequestCanceled
 		case <-cs.peerReset:
 			// processResetStream already removed the
 			// stream from the streams map; no need for
 			// forgetStreamID.
-			return nil, cs.getStartedWrite(), cs.resetErr
+			return nil, cs.resetErr
 		case err := <-bodyWriter.resc:
 			// Prefer the read loop's response, if available. Issue 16102.
 			select {
@@ -912,7 +921,7 @@ func (cc *ClientConn) roundTrip(req *http.Request) (res *http.Response, gotErrAf
 			default:
 			}
 			if err != nil {
-				return nil, cs.getStartedWrite(), err
+				return nil, err
 			}
 			bodyWritten = true
 			if d := cc.responseHeaderTimeout(); d != 0 {
@@ -1527,17 +1536,7 @@ func (rl *clientConnReadLoop) run() error {
 
 func (rl *clientConnReadLoop) processHeaders(f *MetaHeadersFrame) error {
 	cc := rl.cc
-	if f.StreamEnded() {
-		// Issue 20521: If the stream has ended, streamByID() causes
-		// clientStream.done to be closed, which causes the request's bodyWriter
-		// to be closed with an errStreamClosed, which may be received by
-		// clientConn.RoundTrip before the result of processing these headers.
-		// Deferring stream closure allows the header processing to occur first.
-		// clientConn.RoundTrip may still receive the bodyWriter error first, but
-		// the fix for issue 16102 prioritises any response.
-		defer cc.streamByID(f.StreamID, true)
-	}
-	cs := cc.streamByID(f.StreamID, false)
+	cs := cc.streamByID(f.StreamID, f.StreamEnded())
 	if cs == nil {
 		// We'd get here if we canceled a request while the
 		// server had its response still in flight. So if this
@@ -1842,14 +1841,6 @@ func (rl *clientConnReadLoop) processData(f *DataFrame) error {
 		return nil
 	}
 	if f.Length > 0 {
-		if cs.req.Method == "HEAD" && len(data) > 0 {
-			cc.logf("protocol error: received DATA on a HEAD request")
-			rl.endStreamError(cs, StreamError{
-				StreamID: f.StreamID,
-				Code:     ErrCodeProtocol,
-			})
-			return nil
-		}
 		// Check connection-level flow control.
 		cc.mu.Lock()
 		if cs.inflow.available() >= int32(f.Length) {
@@ -1911,11 +1902,11 @@ func (rl *clientConnReadLoop) endStreamError(cs *clientStream, err error) {
 		err = io.EOF
 		code = cs.copyTrailers
 	}
+	cs.bufPipe.closeWithErrorAndCode(err, code)
+	delete(rl.activeRes, cs.ID)
 	if isConnectionCloseRequest(cs.req) {
 		rl.closeWhenIdle = true
 	}
-	cs.bufPipe.closeWithErrorAndCode(err, code)
-	delete(rl.activeRes, cs.ID)
 
 	select {
 	case cs.resc <- resAndError{err: err}:

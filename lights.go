@@ -4,21 +4,10 @@ import (
 	"github.com/thenrich/the-cabin-burned/drivers/gpio"
 	"github.com/thenrich/the-cabin-burned/drivers/command"
 	"gobot.io/x/gobot/platforms/raspi"
+	"log"
+	"github.com/pkg/errors"
+	"strings"
 )
-
-// Controller defines the behavior of a light controller
-type Controller interface {
-	// Start should begin a goroutine to monitor the state of the light
-	Start()
-	// Name should return the name of the light
-	Name() string
-	// State should return the state of the light
-	State() int
-	// Activate should activate the light
-	Activate()
-	// Deactivate should deactivate the light
-	Deactivate()
-}
 
 // Lights is the parent structure that controls all light interactions
 type Lights struct {
@@ -69,28 +58,63 @@ func (l *Lights) handleStateChange(light string, state int) {
 }
 
 func main() {
+	config, err := ReadConfig("tcb.yaml")
+	if err != nil {
+		log.Fatal(errors.Wrap(err, "unable to read config, exiting..."))
+	}
+
+	if config.MQTT == nil {
+		log.Fatal(errors.New("mqtt configuration is required, check config file"))
+	}
+
+	if config.Lights == nil {
+		log.Fatal(errors.New("light configuration is required, check config file"))
+	}
+
 	l := NewLights(&LightsConfig{Exclusive: true})
-	l.AddLight(NewControl("christmas_lights_music", command.NewLights("python", "/home/pi/lightshowpi/py/synchronized_lights.py", "--file=/home/pi/lightshowpi/music/sample/08.mp3")))
-	l.AddLight(NewControl("christmas_lights",
-		gpio.NewLights(
-			&gpio.Config{
+
+	for lightOption := range config.Lights {
+		if config.Lights[lightOption].Kind == "gpio" {
+			if config.Lights[lightOption].Pins == "" {
+				log.Fatal(errors.Errorf("invalid pin configuration for light: %s", config.Lights[lightOption].Name))
+			}
+			gpioCfg := &gpio.Config{
 				Conn: raspi.NewAdaptor(),
-				Pins: []string{
-					"11",
-					"12",
-					"13",
-					"15",
-					"16",
-					"18",
-					"22",
-					"32",
-				}})))
+				Pins: strings.Split(config.Lights[lightOption].Pins, ","),
+			}
+			l.AddLight(NewControl(
+				config.Lights[lightOption].Name,
+				gpio.NewLights(gpioCfg),
+				config.MQTT))
+		}
 
-	m := NewMQTTHandler(l, &HandlerConfig{NamespacePrefix: "home/outside"})
-	h := NewHTTPHandler(l, &HandlerConfig{NamespacePrefix: "/lights"})
+		if config.Lights[lightOption].Kind == "command" {
+			if config.Lights[lightOption].Command == "" {
+				log.Fatal(errors.Errorf("invalid command for light: %s", config.Lights[lightOption].Name))
+			}
 
+			l.AddLight(
+				NewControl(
+					config.Lights[lightOption].Name,
+					command.NewLights(config.Lights[lightOption].Command,
+						config.Lights[lightOption].CommandArgs...),
+					config.MQTT))
+		}
+	}
+
+	m := NewMQTTHandler(l,
+		&MQTTHandlerConfig{HandlerConfig: HandlerConfig{
+			NamespacePrefix: config.MQTT.Prefix,
+		}, Broker: config.MQTT.Broker})
 	AddHandler(m)
-	AddHandler(h)
+
+	if config.HTTP != nil {
+		h := NewHTTPHandler(l,
+			&HTTPHandlerConfig{HandlerConfig: HandlerConfig{
+				NamespacePrefix: config.HTTP.Prefix,
+			}, Listen: config.HTTP.Listen})
+		AddHandler(h)
+	}
 
 	Listen()
 }

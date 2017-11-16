@@ -17,9 +17,23 @@ var state2string = map[int]string{
 	StateOff: "OFF",
 }
 
-var string2state = map[string]int {
-	"on": StateOn,
+var string2state = map[string]int{
+	"on":  StateOn,
 	"off": StateOff,
+}
+
+// Controller defines the behavior of a light controller
+type Controller interface {
+	// Start should begin a goroutine to monitor the state of the light
+	Start()
+	// Name should return the name of the light
+	Name() string
+	// State should return the state of the light
+	State() int
+	// Activate should activate the light
+	Activate()
+	// Deactivate should deactivate the light
+	Deactivate()
 }
 
 // LightControl defines the behavior of the driving of the actual light itself
@@ -33,7 +47,8 @@ type LightControl interface {
 
 // Control implements the Controller interface for driving a LightControl
 type Control struct {
-	Driver LightControl
+	Driver           LightControl
+	MQTTClientConfig *MQTTClientConfig
 
 	name       string
 	state      int
@@ -67,7 +82,7 @@ func (c *Control) Deactivate() {
 
 func (c *Control) setState(state int) {
 	c.state = state
-	Publish(c.name, state2string[c.state])
+	Publish(c.MQTTClientConfig, c.name, state2string[c.state])
 }
 
 func (c *Control) Name() string {
@@ -107,12 +122,13 @@ func (c *Control) Start() {
 	}
 }
 
-func NewControl(name string, driver LightControl) *Control {
+func NewControl(name string, driver LightControl, mqttConfig *MQTTConfig) *Control {
 	ctrl := &Control{
-		Driver:     driver,
-		name:       name,
-		activate:   make(chan bool),
-		deactivate: make(chan bool)}
+		Driver:           driver,
+		MQTTClientConfig: NewMQTTClientConfig(mqttConfig.Broker, mqttConfig.Prefix),
+		name:             name,
+		activate:         make(chan bool),
+		deactivate:       make(chan bool)}
 
 	go ctrl.Start()
 	return ctrl

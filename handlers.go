@@ -16,6 +16,18 @@ type HandlerConfig struct {
 	NamespacePrefix string
 }
 
+type MQTTHandlerConfig struct {
+	HandlerConfig
+
+	Broker string
+}
+
+type HTTPHandlerConfig struct {
+	HandlerConfig
+
+	Listen string
+}
+
 type Handler interface {
 	Serve()
 }
@@ -31,12 +43,17 @@ type MQTTHandler interface {
 }
 
 type MQTT struct {
-	config *HandlerConfig
+	config *MQTTHandlerConfig
 	lights *Lights
 }
 
 func (m *MQTT) Serve() {
-	c := NewMQTTClient()
+	fmt.Println(m.config.Broker)
+	fmt.Println(m.config.NamespacePrefix)
+	options := mqtt.NewClientOptions()
+	options.AddBroker(m.config.Broker)
+	c := mqtt.NewClient(options)
+
 	if token := c.Connect(); token.Wait() && token.Error() != nil {
 		panic(token.Error())
 	}
@@ -61,12 +78,12 @@ func (m *MQTT) handleStateChange(client mqtt.Client, message mqtt.Message) {
 	m.lights.handleStateChange(light, newState)
 }
 
-func NewMQTTHandler(lights *Lights, config *HandlerConfig) *MQTT {
+func NewMQTTHandler(lights *Lights, config *MQTTHandlerConfig) *MQTT {
 	return &MQTT{config, lights}
 }
 
 type HTTP struct {
-	config *HandlerConfig
+	config *HTTPHandlerConfig
 	lights *Lights
 }
 
@@ -75,7 +92,7 @@ func (h *HTTP) Serve() {
 		http.HandleFunc(fmt.Sprintf("%s/%s/on", h.config.NamespacePrefix, key), h.handleStateChange)
 		http.HandleFunc(fmt.Sprintf("%s/%s/off", h.config.NamespacePrefix, key), h.handleStateChange)
 	}
-	log.Fatal(http.ListenAndServe(":8080", nil))
+	log.Fatal(http.ListenAndServe(h.config.Listen, nil))
 }
 func (h *HTTP) handleStateChange(w http.ResponseWriter, r *http.Request) {
 	parts := strings.Split(r.URL.Path, "/")
@@ -84,7 +101,7 @@ func (h *HTTP) handleStateChange(w http.ResponseWriter, r *http.Request) {
 
 	h.lights.handleStateChange(light, newState)
 }
-func NewHTTPHandler(lights *Lights, config *HandlerConfig) *HTTP {
+func NewHTTPHandler(lights *Lights, config *HTTPHandlerConfig) *HTTP {
 	return &HTTP{config, lights}
 }
 

@@ -1,5 +1,5 @@
-hash: 2103a15afd588c20c0fba13629b6c5061bb7efc47b3bfbe18d4de7aae3a28f23
-updated: 2017-11-15T14:54:10.5977-05:00
+hash: 05ef66233c4af6dcbe1c451605ae9feaf35cfee1b5dfec6b5bd47f4596de09cd
+updated: 2017-11-15T23:00:12.413075-05:00
 imports:
 - name: github.com/eclipse/paho.mqtt.golang
   version: aff15770515e3c57fc6109da73d42b0d46f7f483
@@ -9,6 +9,8 @@ imports:
   version: 7554cd9344cec97297fa6649b055a8c98c2a1e55
 - name: github.com/hashicorp/go-multierror
   version: 83588e72410abfbe4df460eeb6f30841ae47d4c4
+- name: github.com/pkg/errors
+  version: 645ef00459ed84a119197bfb8d8205042c6df63d
 - name: github.com/sigurn/crc8
   version: e55481d6f45c5a8f040343bace9013571dae103e
 - name: github.com/sigurn/utils
@@ -27,8 +29,10 @@ imports:
   - io/spi
   - io/spi/driver
 - name: golang.org/x/net
-  version: 9dfe39835686865bff950a07b394c12a98ddc811
+  version: 66aacef3dd8a676686c7ae3716979581e8b03c47
   subpackages:
   - proxy
   - websocket
+- name: gopkg.in/yaml.v2
+  version: eb3733d160e74a9c7e442f435eb3bea458e1d19f
 testImports: []

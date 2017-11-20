@@ -9,6 +9,7 @@ func Publish(clientConfig *MQTTClientConfig, topic string, state string) {
 	options := mqtt.NewClientOptions()
 	options.AddBroker(clientConfig.Broker)
 	c := mqtt.NewClient(options)
+	defer c.Disconnect(30000)
 	if token := c.Connect(); token.Wait() && token.Error() != nil {
 		panic(token.Error())
 	}

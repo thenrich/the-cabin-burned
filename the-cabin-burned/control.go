@@ -131,6 +131,5 @@ func NewControl(name string, driver LightControl, mqttConfig *MQTTConfig) *Contr
 		activate:         make(chan bool),
 		deactivate:       make(chan bool)}
 
-	go ctrl.Start()
 	return ctrl
 }

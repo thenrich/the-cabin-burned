@@ -1,10 +1,10 @@
 package the_cabin_burned
 
 import (
+	"fmt"
 	"log"
 	"gobot.io/x/gobot/platforms/raspi"
 	"strings"
-	"fmt"
 	"github.com/thenrich/the-cabin-burned/drivers/command"
 	"github.com/pkg/errors"
 	"github.com/thenrich/the-cabin-burned/drivers/gpio"
@@ -60,7 +60,6 @@ func (l *Lights) handleStateChange(light string, state int) {
 
 func Start(config *Configuration) {
 	l := NewLights(&LightsConfig{Exclusive: true})
-
 	for lightOption := range config.Lights {
 		if config.Lights[lightOption].Kind == "gpio" {
 			if config.Lights[lightOption].Pins == "" {
@@ -74,21 +73,21 @@ func Start(config *Configuration) {
 				config.Lights[lightOption].Name,
 				gpio.NewLights(gpioCfg),
 				config.MQTT)
-			ctl.Start()
+			go ctl.Start()
 			l.AddLight(ctl)
 		}
 
 		if config.Lights[lightOption].Kind == "command" {
+			fmt.Println("COMMAND")
 			if config.Lights[lightOption].Command == "" {
 				log.Fatal(errors.Errorf("invalid command for light: %s", config.Lights[lightOption].Name))
 			}
-			fmt.Println(config.Lights[lightOption])
 			ctl := NewControl(
 				config.Lights[lightOption].Name,
 				command.NewLights(config.Lights[lightOption].Command,
 					config.Lights[lightOption].CommandArgs...),
 				config.MQTT)
-			ctl.Start()
+			go ctl.Start()
 			l.AddLight(ctl)
 		}
 	}

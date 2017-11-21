@@ -24,6 +24,7 @@ var RootCmd = &cobra.Command{
 func run(configFile string) {
 	fmt.Println("Starting...")
 	config, err := the_cabin_burned.ReadConfig(configFile)
+
 	if err != nil {
 		log.Fatal(errors.Wrap(err, "unable to read config, exiting..."))
 	}

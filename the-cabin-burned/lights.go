@@ -1,5 +1,15 @@
 package the_cabin_burned
 
+import (
+	"log"
+	"gobot.io/x/gobot/platforms/raspi"
+	"strings"
+	"fmt"
+	"github.com/thenrich/the-cabin-burned/drivers/command"
+	"github.com/pkg/errors"
+	"github.com/thenrich/the-cabin-burned/drivers/gpio"
+)
+
 // Lights is the parent structure that controls all light interactions
 type Lights struct {
 	config *LightsConfig
@@ -46,4 +56,56 @@ func (l *Lights) handleStateChange(light string, state int) {
 			l.lights[light].Deactivate()
 		}
 	}
+}
+
+func Start(config *Configuration) {
+	l := NewLights(&LightsConfig{Exclusive: true})
+
+	for lightOption := range config.Lights {
+		if config.Lights[lightOption].Kind == "gpio" {
+			if config.Lights[lightOption].Pins == "" {
+				log.Fatal(errors.Errorf("invalid pin configuration for light: %s", config.Lights[lightOption].Name))
+			}
+			gpioCfg := &gpio.Config{
+				Conn: raspi.NewAdaptor(),
+				Pins: strings.Split(config.Lights[lightOption].Pins, ","),
+			}
+			ctl := NewControl(
+				config.Lights[lightOption].Name,
+				gpio.NewLights(gpioCfg),
+				config.MQTT)
+			ctl.Start()
+			l.AddLight(ctl)
+		}
+
+		if config.Lights[lightOption].Kind == "command" {
+			if config.Lights[lightOption].Command == "" {
+				log.Fatal(errors.Errorf("invalid command for light: %s", config.Lights[lightOption].Name))
+			}
+			fmt.Println(config.Lights[lightOption])
+			ctl := NewControl(
+				config.Lights[lightOption].Name,
+				command.NewLights(config.Lights[lightOption].Command,
+					config.Lights[lightOption].CommandArgs...),
+				config.MQTT)
+			ctl.Start()
+			l.AddLight(ctl)
+		}
+	}
+
+	m := NewMQTTHandler(l,
+		&MQTTHandlerConfig{HandlerConfig: HandlerConfig{
+			NamespacePrefix: config.MQTT.Prefix,
+		}, Broker: config.MQTT.Broker})
+	AddHandler(m)
+
+	if config.HTTP != nil {
+		h := NewHTTPHandler(l,
+			&HTTPHandlerConfig{HandlerConfig: HandlerConfig{
+				NamespacePrefix: config.HTTP.Prefix,
+			}, Listen: config.HTTP.Listen})
+		AddHandler(h)
+	}
+
+	Listen()
 }

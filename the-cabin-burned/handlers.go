@@ -51,7 +51,7 @@ func (m *MQTT) Serve() {
 	// Create mqtt client
 	c := NewMQTTClient(
 		NewMQTTClientConfig(m.config.Broker, m.config.NamespacePrefix))
-		
+
 	for key := range m.lights.lights {
 		if token := c.Client.Subscribe(fmt.Sprintf("%s/%s/set", m.config.NamespacePrefix, key), 0, m.handleStateChange); token.Wait() && token.Error() != nil {
 			panic(token.Error())

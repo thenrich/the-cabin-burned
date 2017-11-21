@@ -21,10 +21,9 @@ type MQTTClient struct {
 func NewMQTTClient(cfg *MQTTClientConfig) *MQTTClient {
 	options := mqtt.NewClientOptions()
 	options.AddBroker(cfg.Broker)
-	options.AutoReconnect = true
-	options.CleanSession = true
+	options.SetAutoReconnect(true)
 	options.SetMaxReconnectInterval(time.Second * 1)
-	options.KeepAlive = time.Second * 5
+	options.SetKeepAlive(time.Second * 5)
 	c := mqtt.NewClient(options)
 
 	if token := c.Connect(); token.WaitTimeout(time.Second*10) && token.Error() != nil {

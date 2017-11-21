@@ -90,6 +90,7 @@ func (c *Control) Name() string {
 }
 
 func (c *Control) Start() {
+	log.Printf("Start %s control", c.name)
 	// done channel lets drivers return a signal
 	// that they've completed
 	done := make(chan bool)

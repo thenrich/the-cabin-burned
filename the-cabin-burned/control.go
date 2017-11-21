@@ -47,8 +47,8 @@ type LightControl interface {
 
 // Control implements the Controller interface for driving a LightControl
 type Control struct {
-	Driver           LightControl
-	MQTTClientConfig *MQTTClientConfig
+	Driver     LightControl
+	MQTTClient *MQTTClient
 
 	name       string
 	state      int
@@ -67,6 +67,7 @@ func (c *Control) Activate() {
 		fmt.Println("Activate.....")
 	default:
 		fmt.Println("Last action pending...")
+
 	}
 }
 
@@ -82,7 +83,7 @@ func (c *Control) Deactivate() {
 
 func (c *Control) setState(state int) {
 	c.state = state
-	Publish(c.MQTTClientConfig, c.name, state2string[c.state])
+	Publish(c.MQTTClient, c.name, state2string[c.state])
 }
 
 func (c *Control) Name() string {
@@ -96,6 +97,7 @@ func (c *Control) Start() {
 	done := make(chan bool)
 
 	for {
+		log.Printf("Wait for communication on %s channel\n", c.name)
 		select {
 		case <-c.activate:
 			if c.state == StateOn {
@@ -111,10 +113,10 @@ func (c *Control) Start() {
 				log.Println("Already off")
 				continue
 			}
+			fmt.Println("Disable")
 			c.Driver.Off()
 			c.setState(StateOff)
 
-			fmt.Println("Disable")
 		case <-done:
 			log.Println("Command completed")
 			c.setState(StateOff)
@@ -123,13 +125,13 @@ func (c *Control) Start() {
 	}
 }
 
-func NewControl(name string, driver LightControl, mqttConfig *MQTTConfig) *Control {
+func NewControl(name string, driver LightControl, mqtt *MQTTClient) *Control {
 	ctrl := &Control{
-		Driver:           driver,
-		MQTTClientConfig: NewMQTTClientConfig(mqttConfig.Broker, mqttConfig.Prefix),
-		name:             name,
-		activate:         make(chan bool),
-		deactivate:       make(chan bool)}
+		Driver:     driver,
+		MQTTClient: mqtt,
+		name:       name,
+		activate:   make(chan bool),
+		deactivate: make(chan bool)}
 
 	return ctrl
 }

@@ -48,18 +48,12 @@ type MQTT struct {
 }
 
 func (m *MQTT) Serve() {
-	fmt.Println(m.config.Broker)
-	fmt.Println(m.config.NamespacePrefix)
-	options := mqtt.NewClientOptions()
-	options.AddBroker(m.config.Broker)
-	c := mqtt.NewClient(options)
-
-	if token := c.Connect(); token.Wait() && token.Error() != nil {
-		panic(token.Error())
-	}
-
+	// Create mqtt client
+	c := NewMQTTClient(
+		NewMQTTClientConfig(m.config.Broker, m.config.NamespacePrefix))
+		
 	for key := range m.lights.lights {
-		if token := c.Subscribe(fmt.Sprintf("%s/%s/set", m.config.NamespacePrefix, key), 0, m.handleStateChange); token.Wait() && token.Error() != nil {
+		if token := c.Client.Subscribe(fmt.Sprintf("%s/%s/set", m.config.NamespacePrefix, key), 0, m.handleStateChange); token.Wait() && token.Error() != nil {
 			panic(token.Error())
 		}
 	}

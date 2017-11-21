@@ -3,21 +3,35 @@ package the_cabin_burned
 import (
 	"github.com/eclipse/paho.mqtt.golang"
 	"fmt"
+	"time"
 )
 
-func Publish(clientConfig *MQTTClientConfig, topic string, state string) {
+func Publish(c *MQTTClient, topic string, state string) {
+	topic = fmt.Sprintf("%s/%s/state", c.Config.Prefix, topic)
+
+	token := c.Client.Publish(topic, 0, true, state)
+	token.WaitTimeout(time.Second * 5)
+}
+
+type MQTTClient struct {
+	Client mqtt.Client
+	Config *MQTTClientConfig
+}
+
+func NewMQTTClient(cfg *MQTTClientConfig) *MQTTClient {
 	options := mqtt.NewClientOptions()
-	options.AddBroker(clientConfig.Broker)
+	options.AddBroker(cfg.Broker)
+	options.AutoReconnect = true
+	options.CleanSession = true
+	options.SetMaxReconnectInterval(time.Second * 1)
+	options.KeepAlive = time.Second * 5
 	c := mqtt.NewClient(options)
-	defer c.Disconnect(30000)
-	if token := c.Connect(); token.Wait() && token.Error() != nil {
+
+	if token := c.Connect(); token.WaitTimeout(time.Second*10) && token.Error() != nil {
 		panic(token.Error())
 	}
 
-	topic = fmt.Sprintf("%s/%s/state", clientConfig.Prefix, topic)
-
-	token := c.Publish(topic, 0, true, state)
-	token.Wait()
+	return &MQTTClient{c, cfg}
 }
 
 type MQTTClientConfig struct {

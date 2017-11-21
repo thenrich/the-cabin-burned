@@ -60,6 +60,11 @@ func (l *Lights) handleStateChange(light string, state int) {
 
 func Start(config *Configuration) {
 	l := NewLights(&LightsConfig{Exclusive: true})
+
+	// Create mqtt client
+	mclient := NewMQTTClient(
+		NewMQTTClientConfig(config.MQTT.Broker, config.MQTT.Prefix))
+
 	for lightOption := range config.Lights {
 		if config.Lights[lightOption].Kind == "gpio" {
 			if config.Lights[lightOption].Pins == "" {
@@ -72,7 +77,7 @@ func Start(config *Configuration) {
 			ctl := NewControl(
 				config.Lights[lightOption].Name,
 				gpio.NewLights(gpioCfg),
-				config.MQTT)
+				mclient)
 			go ctl.Start()
 			l.AddLight(ctl)
 		}
@@ -86,7 +91,7 @@ func Start(config *Configuration) {
 				config.Lights[lightOption].Name,
 				command.NewLights(config.Lights[lightOption].Command,
 					config.Lights[lightOption].CommandArgs...),
-				config.MQTT)
+				mclient)
 			go ctl.Start()
 			l.AddLight(ctl)
 		}

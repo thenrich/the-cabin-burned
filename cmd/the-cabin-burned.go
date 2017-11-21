@@ -5,6 +5,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/pkg/errors"
 	"github.com/thenrich/the-cabin-burned/the-cabin-burned"
+	"fmt"
 )
 
 var cfgFile string
@@ -21,6 +22,7 @@ var RootCmd = &cobra.Command{
 }
 
 func run(configFile string) {
+	fmt.Println("Starting...")
 	config, err := the_cabin_burned.ReadConfig(configFile)
 	if err != nil {
 		log.Fatal(errors.Wrap(err, "unable to read config, exiting..."))

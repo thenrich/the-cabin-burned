@@ -3,6 +3,7 @@ package command
 import (
 	"fmt"
 	"io/ioutil"
+	"syscall"
 	"os/exec"
 	"context"
 	"log"
@@ -11,6 +12,10 @@ import (
 // run the command to invoke the lights
 func runCmd(ctx context.Context, done chan error, command string, args... string) *exec.Cmd {
 	cmd := exec.CommandContext(ctx, command, args...)
+
+	// Set process group so we can kill the process' children when we kill it
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+
 	stderr, err := cmd.StderrPipe()
 	if err != nil {
 		return nil
@@ -53,7 +58,12 @@ func (c *Lights) On(complete chan bool) {
 func (c *Lights) Off() {
 	fmt.Println("try to kill process")
 	if c.cmd != nil {
-		c.cmd.Process.Kill()
+		pgid, err := syscall.Getpgid(c.cmd.Process.Pid) 
+		if err != nil {
+			log.Printf("error getting process id: %s\n", err.Error())
+			return
+		}
+		syscall.Kill(-pgid, 15)
 	}
 }
 

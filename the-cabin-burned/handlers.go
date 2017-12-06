@@ -48,15 +48,19 @@ type MQTT struct {
 }
 
 func (m *MQTT) Serve() {
-	// Create mqtt client
-	c := NewMQTTClient(
-		NewMQTTClientConfig(m.config.Broker, m.config.NamespacePrefix))
-
-	for key := range m.lights.lights {
-		if token := c.Client.Subscribe(fmt.Sprintf("%s/%s/set", m.config.NamespacePrefix, key), 0, m.handleStateChange); token.Wait() && token.Error() != nil {
-			panic(token.Error())
+	// Create mqtt config
+	cfg := NewMQTTClientConfig(m.config.Broker, m.config.NamespacePrefix)
+	cfg.ConnectedHandler = func(c mqtt.Client) {
+		for key := range m.lights.lights {
+			if token := c.Subscribe(fmt.Sprintf("%s/%s/set", m.config.NamespacePrefix, key), 0, m.handleStateChange); token.Wait() && token.Error() != nil {
+				panic(token.Error())
+			}
 		}
 	}
+
+	// Create mqtt client
+	NewMQTTClient(cfg)
+
 }
 
 func (m *MQTT) handleStateChange(client mqtt.Client, message mqtt.Message) {

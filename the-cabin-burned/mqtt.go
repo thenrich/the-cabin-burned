@@ -17,7 +17,7 @@ func Publish(c *MQTTClient, topic string, state string) {
 type MQTTClient struct {
 	Client mqtt.Client
 	Config *MQTTClientConfig
-}
+	}
 
 func NewMQTTClient(cfg *MQTTClientConfig) *MQTTClient {
 	options := mqtt.NewClientOptions()
@@ -28,6 +28,10 @@ func NewMQTTClient(cfg *MQTTClientConfig) *MQTTClient {
 	})
 	options.SetOnConnectHandler(func(c mqtt.Client){
 		log.Println("------ Connected to MQTT")
+		if cfg.ConnectedHandler != nil {
+			fmt.Println("Calling ConnectedHandler")
+			cfg.ConnectedHandler(c)
+		}
 	})
 	c := mqtt.NewClient(options)
 
@@ -41,6 +45,8 @@ func NewMQTTClient(cfg *MQTTClientConfig) *MQTTClient {
 type MQTTClientConfig struct {
 	Broker string
 	Prefix string
+
+	ConnectedHandler func(client mqtt.Client)
 }
 
 func NewMQTTClientConfig(broker string, prefix string) *MQTTClientConfig {

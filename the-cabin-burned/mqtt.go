@@ -2,6 +2,7 @@ package the_cabin_burned
 
 import (
 	"github.com/eclipse/paho.mqtt.golang"
+	"log"
 	"fmt"
 	"time"
 )
@@ -21,9 +22,13 @@ type MQTTClient struct {
 func NewMQTTClient(cfg *MQTTClientConfig) *MQTTClient {
 	options := mqtt.NewClientOptions()
 	options.AddBroker(cfg.Broker)
-	options.SetAutoReconnect(true)
-	options.SetMaxReconnectInterval(time.Second * 1)
-	options.SetKeepAlive(time.Second * 5)
+	options.SetConnectionLostHandler(func(c mqtt.Client, err error){
+		log.Println("------ MQTT Connection Lost")	
+		log.Println(err.Error())
+	})
+	options.SetOnConnectHandler(func(c mqtt.Client){
+		log.Println("------ Connected to MQTT")
+	})
 	c := mqtt.NewClient(options)
 
 	if token := c.Connect(); token.WaitTimeout(time.Second*10) && token.Error() != nil {

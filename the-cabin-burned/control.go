@@ -13,8 +13,8 @@ const (
 
 // state2string converts states to strings
 var state2string = map[int]string{
-	StateOn:  "ON",
-	StateOff: "OFF",
+	StateOn:  "on",
+	StateOff: "off",
 }
 
 var string2state = map[string]int{
@@ -47,8 +47,7 @@ type LightControl interface {
 
 // Control implements the Controller interface for driving a LightControl
 type Control struct {
-	Driver     LightControl
-	MQTTClient *MQTTClient
+	Driver LightControl
 
 	name       string
 	state      int
@@ -83,7 +82,9 @@ func (c *Control) Deactivate() {
 
 func (c *Control) setState(state int) {
 	c.state = state
-	Publish(c.MQTTClient, c.name, state2string[c.state])
+	// Publish state
+
+	//Publish(c.MQTTClient, c.name, state2string[c.state])
 }
 
 func (c *Control) Name() string {
@@ -91,6 +92,10 @@ func (c *Control) Name() string {
 }
 
 func (c *Control) Start() {
+	go c.start()
+}
+
+func (c *Control) start() {
 	log.Printf("Start %s control", c.name)
 	// done channel lets drivers return a signal
 	// that they've completed
@@ -125,11 +130,11 @@ func (c *Control) Start() {
 	}
 }
 
-func NewControl(name string, driver LightControl, mqtt *MQTTClient) *Control {
+func NewControl(name string, driver LightControl) *Control {
 	ctrl := &Control{
 		Driver:     driver,
-		MQTTClient: mqtt,
 		name:       name,
+		state:      StateOff,
 		activate:   make(chan bool),
 		deactivate: make(chan bool)}
 

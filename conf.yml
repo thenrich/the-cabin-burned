@@ -1,0 +1,13 @@
+mqtt:
+  broker: tcp://localhost:1883
+  prefix: outside
+http:
+  listen: 0.0.0.0:9090
+  prefix: outside 
+lights:
+  - name: christmas_lights
+    kind: gpio
+    pins: 10 
+  - name: music_light_show
+    kind: gpio
+    pins: 11 

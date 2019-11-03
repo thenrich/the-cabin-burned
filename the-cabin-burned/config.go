@@ -1,24 +1,21 @@
 package the_cabin_burned
 
 import (
-	"io/ioutil"
 	"github.com/pkg/errors"
 	"gopkg.in/yaml.v2"
+	"io/ioutil"
 )
-
-// MQTTConfig is the host to pub/sub for MQTT messages: tcp://192.168.1.5:1883
-type MQTTConfig struct {
-	// MQTT Broker in the form of tcp://192.168.1.5:1883
-	Broker string
-	// MQTT topic prefix
-	Prefix string
-}
 
 // HTTPConfig is the host to listen on for HTTP commands: 0.0.0.0:8080
 type HTTPConfig struct {
 	// Listen on the host and port: 0.0.0.0:8080
 	Listen string
 	// HTTP path prefix
+	Prefix string
+}
+
+type MQTTConfig struct {
+	Broker string
 	Prefix string
 }
 
@@ -37,11 +34,11 @@ type ConfigLightsOptions struct {
 }
 
 type Configuration struct {
-	// Listeners defines the services that listen for commands: http, mqtt
-	MQTT      *MQTTConfig           `yaml:"mqtt,omitempty"`
-	HTTP      *HTTPConfig           `yaml:"http,omitempty"`
-	Pins      string                `yaml:"pins,omitempty"`
-	Lights    []ConfigLightsOptions `yaml:"lights,omitempty"`
+	// Listeners defines the services that listen for commands: http
+	MQTT *MQTTConfig                `yaml:"mqtt",omitempty"`
+	HTTP       *HTTPConfig           `yaml:"http,omitempty"`
+	Pins       string                `yaml:"pins,omitempty"`
+	Lights     []ConfigLightsOptions `yaml:"lights,omitempty"`
 }
 
 func readConfig(path string) ([]byte, error) {

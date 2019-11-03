@@ -1,14 +1,19 @@
 package the_cabin_burned
 
 import (
+	"encoding/json"
 	"fmt"
-	"github.com/eclipse/paho.mqtt.golang"
-	"strings"
-	"net/http"
+	"io/ioutil"
 	"log"
+	"net/http"
+	"strings"
 )
 
 var handlers []Handler
+
+type JsonResponse struct {
+	Active string `json:"active",omitempty`
+}
 
 type HandlerConfig struct {
 	// NamespacePrefix is the prefix before a handler's resource identifier
@@ -16,15 +21,8 @@ type HandlerConfig struct {
 	NamespacePrefix string
 }
 
-type MQTTHandlerConfig struct {
-	HandlerConfig
-
-	Broker string
-}
-
 type HTTPHandlerConfig struct {
 	HandlerConfig
-
 	Listen string
 }
 
@@ -37,48 +35,6 @@ type HTTPHandler interface {
 	handleStateChange(http.ResponseWriter, *http.Request)
 }
 
-type MQTTHandler interface {
-	Handler
-	handleStateChange(client mqtt.Client, message mqtt.Message)
-}
-
-type MQTT struct {
-	config *MQTTHandlerConfig
-	lights *Lights
-}
-
-func (m *MQTT) Serve() {
-	// Create mqtt config
-	cfg := NewMQTTClientConfig(m.config.Broker, m.config.NamespacePrefix)
-	cfg.ConnectedHandler = func(c mqtt.Client) {
-		for key := range m.lights.lights {
-			if token := c.Subscribe(fmt.Sprintf("%s/%s/set", m.config.NamespacePrefix, key), 0, m.handleStateChange); token.Wait() && token.Error() != nil {
-				panic(token.Error())
-			}
-		}
-	}
-
-	// Create mqtt client
-	NewMQTTClient(cfg)
-
-}
-
-func (m *MQTT) handleStateChange(client mqtt.Client, message mqtt.Message) {
-	parts := strings.Split(message.Topic(), "/")
-	light, state := parts[2], string(message.Payload())
-	var newState int
-	if state == "ON" {
-		newState = StateOn
-	} else {
-		newState = StateOff
-	}
-
-	m.lights.handleStateChange(light, newState)
-}
-
-func NewMQTTHandler(lights *Lights, config *MQTTHandlerConfig) *MQTT {
-	return &MQTT{config, lights}
-}
 
 type HTTP struct {
 	config *HTTPHandlerConfig
@@ -87,17 +43,55 @@ type HTTP struct {
 
 func (h *HTTP) Serve() {
 	for key := range h.lights.lights {
-		http.HandleFunc(fmt.Sprintf("%s/%s/on", h.config.NamespacePrefix, key), h.handleStateChange)
-		http.HandleFunc(fmt.Sprintf("%s/%s/off", h.config.NamespacePrefix, key), h.handleStateChange)
+		http.HandleFunc(fmt.Sprintf("/%s/%s", h.config.NamespacePrefix, key), h.handleRequest)
+		//http.HandleFunc(fmt.Sprintf("/%s/%s", h.config.NamespacePrefix, key), h.handleRequest)
 	}
+
 	log.Fatal(http.ListenAndServe(h.config.Listen, nil))
 }
-func (h *HTTP) handleStateChange(w http.ResponseWriter, r *http.Request) {
+func (h *HTTP) handleRequest(w http.ResponseWriter, r *http.Request) {
 	parts := strings.Split(r.URL.Path, "/")
-	light, state := parts[2], parts[3]
-	newState := string2state[state]
+	light := parts[2]
 
-	h.lights.handleStateChange(light, newState)
+	if r.Method == "POST" {
+		payload := &JsonResponse{}
+		pb, err := ioutil.ReadAll(r.Body)
+		if err != nil {
+			w.WriteHeader(500)
+			return
+		}
+
+		if err := json.Unmarshal(pb, payload); err != nil {
+			log.Println(err.Error())
+			w.WriteHeader(500)
+			return
+		}
+
+		log.Println(payload.Active)
+		newState := string2state[payload.Active]
+
+		h.lights.handleStateChange(light, newState)
+
+		writeResponseStruct(w, &JsonResponse{Active: state2string[newState]})
+
+		return
+	}
+
+	writeResponseStruct(w, &JsonResponse{Active: state2string[h.lights.lights[light].State()]})
+
+	return
+
+}
+
+func writeResponseStruct(w http.ResponseWriter, i interface{}) {
+	b, err := json.Marshal(i)
+	if err != nil {
+		w.WriteHeader(500)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	log.Println(string(b))
+	w.Write(b)
 }
 func NewHTTPHandler(lights *Lights, config *HTTPHandlerConfig) *HTTP {
 	return &HTTP{config, lights}
@@ -111,6 +105,6 @@ func AddHandler(h Handler) {
 // Listen starts serving all handlers
 func Listen() {
 	for h := range handlers {
-		handlers[h].Serve()
+		go handlers[h].Serve()
 	}
 }

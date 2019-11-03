@@ -2,12 +2,14 @@ package the_cabin_burned
 
 import (
 	"fmt"
-	"log"
-	"gobot.io/x/gobot/platforms/raspi"
-	"strings"
-	"github.com/thenrich/the-cabin-burned/drivers/command"
+	mqtt "github.com/eclipse/paho.mqtt.golang"
 	"github.com/pkg/errors"
+	"github.com/thenrich/the-cabin-burned/drivers/command"
 	"github.com/thenrich/the-cabin-burned/drivers/gpio"
+	"gobot.io/x/gobot/platforms/raspi"
+	"log"
+	"strings"
+	"time"
 )
 
 // Lights is the parent structure that controls all light interactions
@@ -59,11 +61,7 @@ func (l *Lights) handleStateChange(light string, state int) {
 }
 
 func Start(config *Configuration) {
-	l := NewLights(&LightsConfig{Exclusive: true})
-
-	// Create mqtt client
-	mclient := NewMQTTClient(
-		NewMQTTClientConfig(config.MQTT.Broker, config.MQTT.Prefix))
+	l := NewLights(&LightsConfig{Exclusive: false})
 
 	for lightOption := range config.Lights {
 		if config.Lights[lightOption].Kind == "gpio" {
@@ -76,9 +74,8 @@ func Start(config *Configuration) {
 			}
 			ctl := NewControl(
 				config.Lights[lightOption].Name,
-				gpio.NewLights(gpioCfg),
-				mclient)
-			go ctl.Start()
+				gpio.NewLights(gpioCfg))
+			ctl.Start()
 			l.AddLight(ctl)
 		}
 
@@ -90,26 +87,32 @@ func Start(config *Configuration) {
 			ctl := NewControl(
 				config.Lights[lightOption].Name,
 				command.NewLights(config.Lights[lightOption].Command,
-					config.Lights[lightOption].CommandArgs...),
-				mclient)
-			go ctl.Start()
+					config.Lights[lightOption].CommandArgs...))
+			ctl.Start()
 			l.AddLight(ctl)
 		}
 	}
-
-	m := NewMQTTHandler(l,
-		&MQTTHandlerConfig{HandlerConfig: HandlerConfig{
-			NamespacePrefix: config.MQTT.Prefix,
-		}, Broker: config.MQTT.Broker})
-	AddHandler(m)
 
 	if config.HTTP != nil {
 		h := NewHTTPHandler(l,
 			&HTTPHandlerConfig{HandlerConfig: HandlerConfig{
 				NamespacePrefix: config.HTTP.Prefix,
 			}, Listen: config.HTTP.Listen})
+
 		AddHandler(h)
 	}
+	opts := mqtt.NewClientOptions()
+	log.Printf("add %s\n", config.MQTT.Broker)
+	opts.AddBroker(config.MQTT.Broker)
+	mClient := mqtt.NewClient(opts)
+	if tok := mClient.Connect(); tok.WaitTimeout(time.Second * 10) != true {
+		log.Println("unable to connect to mqtt broker after 10s")
+		log.Fatal(tok.Error())
+	}
+
+	m := NewMQTTHandler(l, &mClient, config.MQTT.Prefix)
+	AddHandler(m)
 
 	Listen()
+	select {}
 }

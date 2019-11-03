@@ -1,5 +1,0 @@
-package: github.com/thenrich/the-cabin-burned
-import:
-- package: gopkg.in/yaml.v2
-- package: github.com/spf13/cobra
-  version: ~0.0.1

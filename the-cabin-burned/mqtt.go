@@ -1,58 +1,41 @@
 package the_cabin_burned
 
 import (
-	"github.com/eclipse/paho.mqtt.golang"
-	"log"
 	"fmt"
-	"time"
+	mqtt "github.com/eclipse/paho.mqtt.golang"
+	"log"
+	"strings"
 )
 
-func Publish(c *MQTTClient, topic string, state string) {
-	topic = fmt.Sprintf("%s/%s/state", c.Config.Prefix, topic)
-
-	token := c.Client.Publish(topic, 0, true, state)
-	token.WaitTimeout(time.Second * 5)
+type MQTT struct {
+	prefix string
+	client *mqtt.Client
+	lights *Lights
 }
 
-type MQTTClient struct {
-	Client mqtt.Client
-	Config *MQTTClientConfig
-	}
-
-func NewMQTTClient(cfg *MQTTClientConfig) *MQTTClient {
-	options := mqtt.NewClientOptions()
-	options.AddBroker(cfg.Broker)
-	options.SetConnectionLostHandler(func(c mqtt.Client, err error){
-		log.Println("------ MQTT Connection Lost")	
-		log.Println(err.Error())
-	})
-	options.SetOnConnectHandler(func(c mqtt.Client){
-		log.Println("------ Connected to MQTT")
-		if cfg.ConnectedHandler != nil {
-			fmt.Println("Calling ConnectedHandler")
-			cfg.ConnectedHandler(c)
-		}
-	})
-	c := mqtt.NewClient(options)
-
-	if token := c.Connect(); token.WaitTimeout(time.Second*10) && token.Error() != nil {
-		panic(token.Error())
-	}
-
-	return &MQTTClient{c, cfg}
+func NewMQTTHandler(lights *Lights, client *mqtt.Client, prefix string) *MQTT {
+	return &MQTT{prefix, client, lights}
 }
 
-type MQTTClientConfig struct {
-	Broker string
-	Prefix string
-
-	ConnectedHandler func(client mqtt.Client)
+func (m *MQTT) Serve() {
+	client := *m.client
+	for key := range m.lights.lights {
+		topic := fmt.Sprintf("/%s/%s/%s", m.prefix, key, "command")
+		log.Printf("subcribe to %s\n", topic)
+		client.Subscribe(topic, 1, m.onMessage)
+		client.Publish(fmt.Sprintf("/%s/%s/%s", m.prefix, key, "available"), 1, true, []byte("available"))
+	}
 }
 
-func NewMQTTClientConfig(broker string, prefix string) *MQTTClientConfig {
-	return &MQTTClientConfig{
-		Broker: broker,
-		Prefix: prefix,
-	}
+func (m *MQTT) onMessage(c mqtt.Client, msg mqtt.Message) {
+	// Find light from topic
+	parts := strings.Split(msg.Topic(),"/")
+	light := parts[2]
 
+	cmd := string(msg.Payload())
+	log.Printf("set state of %s to %s\n", light, cmd)
+	m.lights.handleStateChange(light, string2state[cmd])
+	// Publish state change back to broker
+	(*m.client).Publish(fmt.Sprintf("/%s/%s/%s", m.prefix, light, "state"), 1, true, []byte(cmd))
+	msg.Ack()
 }

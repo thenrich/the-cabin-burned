@@ -29,9 +29,7 @@ func run(configFile string) {
 		log.Fatal(errors.Wrap(err, "unable to read config, exiting..."))
 	}
 
-	if config.MQTT == nil {
-		log.Fatal(errors.New("mqtt configuration is required, check config file"))
-	}
+
 
 	if config.Lights == nil {
 		log.Fatal(errors.New("light configuration is required, check config file"))

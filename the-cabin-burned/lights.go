@@ -61,7 +61,7 @@ func (l *Lights) handleStateChange(light string, state int) {
 }
 
 func Start(config *Configuration) {
-	l := NewLights(&LightsConfig{Exclusive: false})
+	l := NewLights(&LightsConfig{Exclusive: true})
 
 	for lightOption := range config.Lights {
 		if config.Lights[lightOption].Kind == "gpio" {

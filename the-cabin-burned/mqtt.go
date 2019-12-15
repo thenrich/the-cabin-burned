@@ -24,6 +24,19 @@ func (m *MQTT) Serve() {
 		log.Printf("subcribe to %s\n", topic)
 		client.Subscribe(topic, 1, m.onMessage)
 		client.Publish(fmt.Sprintf("/%s/%s/%s", m.prefix, key, "available"), 1, true, []byte("available"))
+
+		go m.handleStateChanges(m.lights.lights[key])
+	}
+}
+
+func (m *MQTT) handleStateChanges(c Controller) {
+	client := *m.client
+	for {
+		select {
+		case state := <- c.StateChannel():
+			log.Printf("got state: %s for %s\n", state, c.Name())
+			client.Publish(fmt.Sprintf("/%s/%s/%s", m.prefix, c.Name(), "state"), 1, true, []byte(state))
+		}
 	}
 }
 
@@ -36,6 +49,6 @@ func (m *MQTT) onMessage(c mqtt.Client, msg mqtt.Message) {
 	log.Printf("set state of %s to %s\n", light, cmd)
 	m.lights.handleStateChange(light, string2state[cmd])
 	// Publish state change back to broker
-	(*m.client).Publish(fmt.Sprintf("/%s/%s/%s", m.prefix, light, "state"), 1, true, []byte(cmd))
+	//(*m.client).Publish(fmt.Sprintf("/%s/%s/%s", m.prefix, light, "state"), 1, true, []byte(cmd))
 	msg.Ack()
 }

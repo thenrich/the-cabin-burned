@@ -34,6 +34,8 @@ type Controller interface {
 	Activate()
 	// Deactivate should deactivate the light
 	Deactivate()
+
+	StateChannel() chan string
 }
 
 // LightControl defines the behavior of the driving of the actual light itself
@@ -49,10 +51,11 @@ type LightControl interface {
 type Control struct {
 	Driver LightControl
 
-	name       string
-	state      int
-	activate   chan bool
-	deactivate chan bool
+	name         string
+	state        int
+	activate     chan bool
+	deactivate   chan bool
+	stateChannel chan string
 }
 
 func (c *Control) State() int {
@@ -85,6 +88,11 @@ func (c *Control) setState(state int) {
 	// Publish state
 
 	//Publish(c.MQTTClient, c.name, state2string[c.state])
+	c.stateChannel <- state2string[c.state]
+}
+
+func (c *Control) StateChannel() chan string {
+	return c.stateChannel
 }
 
 func (c *Control) Name() string {
@@ -132,11 +140,12 @@ func (c *Control) start() {
 
 func NewControl(name string, driver LightControl) *Control {
 	ctrl := &Control{
-		Driver:     driver,
-		name:       name,
-		state:      StateOff,
-		activate:   make(chan bool),
-		deactivate: make(chan bool)}
+		Driver:       driver,
+		name:         name,
+		state:        StateOff,
+		activate:     make(chan bool),
+		deactivate:   make(chan bool),
+		stateChannel: make(chan string)}
 
 	return ctrl
 }
